@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Examen_BlackJack</string>
+    <string name="title_activity_game">Game</string>
+    <string name="title_activity_scores">Scores</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+</resources>
