@@ -2,7 +2,6 @@ package com.example.examen_blackjack
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,7 +41,7 @@ class Game : ComponentActivity() {
             darkMode.value = intent.extras!!.getBoolean("darkMode")
 
             Examen_BlackJackTheme(darkTheme = darkMode.value) {
-                    GameView(darkMode.value)
+                GameView(darkMode.value)
             }
         }
     }
@@ -52,6 +51,7 @@ class GameVariables : ViewModel() {
     var name = "Jugador"
     var numberCards = "21"
     var puntuacion = "0"
+    var onWinState = mutableStateOf(false)
 }
 
 val gamevars = GameVariables()
@@ -77,7 +77,7 @@ fun GameView(darkMode: Boolean) {
             WelcomeMessage()
             StartButton(croupierHand, playerHand)
             CroupierView(croupierHand)
-            BotonesView()
+            BotonesView(playerHand)
             PlayerView(playerHand)
         }
     )
@@ -140,8 +140,7 @@ fun WelcomeMessage() {
             text = "Hola ${gamevars.name}! estas jugando con ${gamevars.numberCards}",
             textAlign = TextAlign.Center,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -169,7 +168,7 @@ fun StartButton(croupierHand: SnapshotStateList<Card>, playerHand: SnapshotState
 }
 
 @Composable
-fun BotonesView() {
+fun BotonesView(playerHand: SnapshotStateList<Card>) {
     Box(
         modifier = Modifier
             .fillMaxSize(),
@@ -181,7 +180,7 @@ fun BotonesView() {
                 .size(100.dp)
                 .clip(CircleShape),
                 colors = ButtonDefaults.buttonColors(backgroundColor = colorResource(id = R.color.dark_red)),
-                onClick = { /*TODO*/ }
+                onClick = { tomarCarta(mutableStateOf(playerHand)) }
             ) {
                 Text(
                     text = "Tomar",
@@ -207,7 +206,9 @@ fun BotonesView() {
                 .size(100.dp)
                 .clip(CircleShape),
                 colors = ButtonDefaults.buttonColors(backgroundColor = colorResource(id = R.color.dark_red)),
-                onClick = { /*TODO*/ }) {
+                onClick = {
+                    parar()
+                }) {
                 Text(
                     text = "Parar",
                     color = Color.White
@@ -216,6 +217,20 @@ fun BotonesView() {
         }
 
     }
+}
+
+fun tomarCarta(playerHand: MutableState<SnapshotStateList<Card>>) {
+    if (player.getHandValue() > 21) {
+        gamevars.onWinState.value = false
+    } else {
+        player.recibirCarta(deck.drawCard())
+        playerHand.value = player.hand.toMutableStateList()
+    }
+
+}
+
+fun parar() {
+    gamevars.onWinState.value = player.getHandValue() <= 21
 }
 
 @Composable
@@ -242,6 +257,8 @@ fun CroupierView(croupierHand: SnapshotStateList<Card>) {
 
 @Composable
 fun PlayerView(playerHand: SnapshotStateList<Card>) {
+    Text(text = "${gamevars.onWinState.value}")
+
     Text(
         text = "${gamevars.name}",
         modifier = Modifier
