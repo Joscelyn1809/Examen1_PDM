@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import com.example.examen_blackjack.ui.theme.Examen_BlackJackTheme
+import java.time.LocalDateTime
 
 class Game : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,12 +37,28 @@ class Game : ComponentActivity() {
                 mutableStateOf(false)
             }
 
+            var nombreJugador by remember {
+                mutableStateOf("")  
+            }
+
+            var numeroCartas by remember {
+                mutableStateOf("")
+            }
+
+            gamevars = GameVariables()
+            player = Player("name")
+            croupier = Croupier()
+            deck = Deck()
+
             gamevars.name = intent.getStringExtra("name").toString()
             gamevars.numberCards = intent.getStringExtra("cards").toString()
             darkMode.value = intent.extras!!.getBoolean("darkMode")
 
+            nombreJugador = gamevars.name
+            numeroCartas = gamevars.numberCards
+
             Examen_BlackJackTheme(darkTheme = darkMode.value) {
-                GameView(darkMode.value)
+                GameView(darkMode.value, nombreJugador, numeroCartas)
             }
         }
     }
@@ -50,38 +67,51 @@ class Game : ComponentActivity() {
 class GameVariables : ViewModel() {
     var name = "Jugador"
     var numberCards = "21"
-    var puntuacion = "0"
-    var onWinState = mutableStateOf(false)
+    var puntuacion = mutableStateOf("0")
+    var onWinState = mutableStateOf(-1)
+    var onPlayingState = mutableStateOf(1)
 }
 
-val gamevars = GameVariables()
-val player = Player("name")
-val croupier = Croupier()
-val deck = Deck()
+var gamevars = GameVariables()
+var player = Player("name")
+var croupier = Croupier()
+var deck = Deck()
 
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
-fun GameView(darkMode: Boolean) {
+fun GameView(darkMode: Boolean, nombreJugador: String, numeroCartas: String) {
     val context = LocalContext.current
     Scaffold(
         topBar = { GameTopBar(darkMode) },
 
         content = {
             //BlackjackGame()
-            var croupierHand by remember {
+            var croupierHand = remember {
                 mutableStateOf(mutableStateListOf<Card>())
             }
-            var playerHand by remember {
+            var playerHand = remember {
                 mutableStateOf(mutableStateListOf<Card>())
             }
-            WelcomeMessage()
-            StartButton(croupierHand, playerHand)
-            CroupierView(croupierHand)
-            BotonesView(playerHand)
-            PlayerView(playerHand)
+
+            var isDown = remember {
+                mutableStateOf(true)
+            }
+
+            WelcomeMessage(darkMode)
+            CroupierView(croupierHand, isDown, darkMode)
+            BotonesView(playerHand, croupierHand, isDown, darkMode, numeroCartas, nombreJugador)
+            PlayerView(playerHand, darkMode)
+            rules(numeroCartas)
         }
     )
+}
 
+fun rules(numeroCartas: String) {
+    if (gamevars.onPlayingState.value == 1) {
+        if (player.getHandValue(numeroCartas.toInt()) > numeroCartas.toInt()) {
+            gamevars.onPlayingState.value = 0
+        }
+    }
 }
 
 @Composable
@@ -119,13 +149,13 @@ fun drawCard(
     repeat(2) {
         player.recibirCarta(deck.drawCard())
         croupier.recibirCarta(deck.drawCard())
-        croupierHand.value = croupier.hand.toMutableStateList()
-        playerHand.value = player.hand.toMutableStateList()
     }
+    croupierHand.value = croupier.hand.toMutableStateList()
+    playerHand.value = player.hand.toMutableStateList()
 }
 
 @Composable
-fun WelcomeMessage() {
+fun WelcomeMessage(darkMode: Boolean) {
     if (gamevars.name == "") {
         gamevars.name = "Jugador"
     }
@@ -140,35 +170,31 @@ fun WelcomeMessage() {
             text = "Hola ${gamevars.name}! estas jugando con ${gamevars.numberCards}",
             textAlign = TextAlign.Center,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = if (darkMode) {
+                Color.White
+            } else {
+                Color.Black
+            }
         )
     }
 }
 
 @Composable
-fun StartButton(croupierHand: SnapshotStateList<Card>, playerHand: SnapshotStateList<Card>) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 20.dp)
-            .size(300.dp)
-            .clip(CircleShape),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Button(
-            onClick = { drawCard(mutableStateOf(croupierHand), mutableStateOf(playerHand)) },
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color.DarkGray),
-        ) {
-            Text(
-                text = "Comenzar",
-                color = Color.White
-            )
-        }
+fun BotonesView(
+    playerHand: MutableState<SnapshotStateList<Card>>,
+    croupierHand: MutableState<SnapshotStateList<Card>>,
+    isDown: MutableState<Boolean>,
+    darkMode: Boolean,
+    numeroCartas: String,
+    nombreJugador: String
+) {
+    var buttonState by remember {
+        mutableStateOf(false)
     }
-}
+    var context = LocalContext.current
+    val tinyDB = remember { TinyDB(context) }
 
-@Composable
-fun BotonesView(playerHand: SnapshotStateList<Card>) {
     Box(
         modifier = Modifier
             .fillMaxSize(),
@@ -179,8 +205,12 @@ fun BotonesView(playerHand: SnapshotStateList<Card>) {
                 .padding(end = 5.dp)
                 .size(100.dp)
                 .clip(CircleShape),
+                enabled = buttonState,
                 colors = ButtonDefaults.buttonColors(backgroundColor = colorResource(id = R.color.dark_red)),
-                onClick = { tomarCarta(mutableStateOf(playerHand)) }
+                onClick = {
+                    tomarCarta(playerHand, numeroCartas)
+                    gamevars.puntuacion = mutableStateOf(player.getHandValue(numeroCartas.toInt()).toString())
+                }
             ) {
                 Text(
                     text = "Tomar",
@@ -194,20 +224,39 @@ fun BotonesView(playerHand: SnapshotStateList<Card>) {
             )
             {
                 Text(
-                    text = "${gamevars.puntuacion}",
+                    text = gamevars.puntuacion.value,
                     textAlign = TextAlign.Center,
-                    fontSize = 20.sp
+                    fontSize = 20.sp,
+                    color = if (darkMode) {
+                        Color.White
+                    } else {
+                        Color.Black
+                    }
                 )
             }
-
 
             Button(modifier = Modifier
                 .padding(start = 5.dp)
                 .size(100.dp)
                 .clip(CircleShape),
+                enabled = buttonState,
                 colors = ButtonDefaults.buttonColors(backgroundColor = colorResource(id = R.color.dark_red)),
                 onClick = {
-                    parar()
+                    parar(croupierHand, numeroCartas, nombreJugador)
+                    val gameScores = tinyDB.getListString("gameScores")
+                    val ganador = when (gamevars.onWinState.value) {
+                        1 -> nombreJugador
+                        0 -> "Croupier"
+                        else -> "Empate"
+                    }
+                    val score = ganador + ";" + player.mostrarMano() +
+                            ";" + croupier.mostrarMano() + ";" + LocalDateTime.now().toString()
+                    gameScores.add(score)
+                    tinyDB.putListString("gameScores", gameScores)
+
+                    buttonState = !buttonState
+                    isDown.value = false
+                    gamevars.puntuacion = mutableStateOf(player.getHandValue(numeroCartas.toInt()).toString())
                 }) {
                 Text(
                     text = "Parar",
@@ -215,26 +264,97 @@ fun BotonesView(playerHand: SnapshotStateList<Card>) {
                 )
             }
         }
+        Text(
+            text = when (gamevars.onWinState.value) {
+                1 -> "Has Ganado!"
+                0 -> "Perdiste!"
+                2 -> "Empate"
+                else -> ""
+            },
+            textAlign = TextAlign.Center,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (darkMode) {
+                Color.White
+            } else {
+                Color.Black
+            },
+            modifier = Modifier.padding(top = 40.dp)
+        )
+    }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 20.dp)
+            .size(300.dp)
+            .clip(CircleShape),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Button(
+            onClick = {
+                gamevars = GameVariables()
+                player = Player(gamevars.name)
+                croupier = Croupier()
+                deck = Deck()
+
+                drawCard(croupierHand, playerHand)
+                buttonState = !buttonState
+                isDown.value = true
+                gamevars.puntuacion = mutableStateOf(player.getHandValue(numeroCartas.toInt()).toString())
+            },
+            enabled = !buttonState,
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color.DarkGray),
+        ) {
+            Text(
+                text = "Comenzar",
+                color = Color.White
+            )
+        }
     }
 }
 
-fun tomarCarta(playerHand: MutableState<SnapshotStateList<Card>>) {
-    if (player.getHandValue() > 21) {
-        gamevars.onWinState.value = false
+fun tomarCarta(playerHand: MutableState<SnapshotStateList<Card>>, numeroCartas: String) {
+    if (player.getHandValue(numeroCartas.toInt()) > numeroCartas.toInt()) {
+        gamevars.onWinState.value = 0
     } else {
         player.recibirCarta(deck.drawCard())
         playerHand.value = player.hand.toMutableStateList()
     }
-
 }
 
-fun parar() {
-    gamevars.onWinState.value = player.getHandValue() <= 21
+fun parar(
+    croupierHand: MutableState<SnapshotStateList<Card>>,
+    numCards: String,
+    nombreJugador: String
+) {
+    var croupierPoints = croupier.getHandValue()
+    var playerPoints = player.getHandValue(numCards.toInt())
+
+    while (croupierPoints < playerPoints && croupierPoints < numCards.toInt() &&
+        !(playerPoints > numCards.toInt())
+    ) {
+        croupier.recibirCarta(deck.drawCard())
+        croupierPoints = croupier.getHandValue()
+    }
+
+    croupierHand.value = croupier.hand.toMutableStateList()
+
+    if (playerPoints in (croupierPoints + 1)..numCards.toInt() || croupierPoints > numCards.toInt()) {
+        gamevars.onWinState.value = 1 //Gano jugador
+    } else if (playerPoints < croupierPoints || playerPoints > numCards.toInt()) {
+        gamevars.onWinState.value = 0 //Perdio jugador
+    } else {
+        gamevars.onWinState.value = 2 //Empate
+    }
 }
 
 @Composable
-fun CroupierView(croupierHand: SnapshotStateList<Card>) {
+fun CroupierView(
+    croupierHand: MutableState<SnapshotStateList<Card>>,
+    isDown: MutableState<Boolean>,
+    darkMode: Boolean
+) {
     Text(
         text = "Croupier",
         modifier = Modifier
@@ -242,7 +362,12 @@ fun CroupierView(croupierHand: SnapshotStateList<Card>) {
             .padding(top = 70.dp),
         textAlign = TextAlign.Center,
         fontWeight = FontWeight.ExtraBold,
-        fontSize = 30.sp
+        fontSize = 30.sp,
+        color = if (darkMode) {
+            Color.White
+        } else {
+            Color.Black
+        }
     )
     Box(
         modifier = Modifier
@@ -250,23 +375,25 @@ fun CroupierView(croupierHand: SnapshotStateList<Card>) {
             .padding(top = 130.dp),
         contentAlignment = Alignment.TopCenter
     ) {
-        cardRow(cards = croupierHand)
-        Text(text = "${croupier.hand}")
+        CardRow(cards = croupierHand, isDown.value)
     }
 }
 
 @Composable
-fun PlayerView(playerHand: SnapshotStateList<Card>) {
-    Text(text = "${gamevars.onWinState.value}")
-
+fun PlayerView(playerHand: MutableState<SnapshotStateList<Card>>, darkMode: Boolean) {
     Text(
-        text = "${gamevars.name}",
+        text = gamevars.name,
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 650.dp),
+            .padding(top = 640.dp),
         textAlign = TextAlign.Center,
         fontWeight = FontWeight.ExtraBold,
-        fontSize = 30.sp
+        fontSize = 30.sp,
+        color = if (darkMode) {
+            Color.White
+        } else {
+            Color.Black
+        }
     )
 
     Box(
@@ -275,22 +402,23 @@ fun PlayerView(playerHand: SnapshotStateList<Card>) {
             .padding(bottom = 130.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        cardRow(cards = playerHand)
-        Text(text = "${player.hand}")
+        CardRow(cards = playerHand, false)
     }
 }
 
 @Composable
-fun cardRow(cards: SnapshotStateList<Card>) {
-    var hand by remember {
-        mutableStateOf(cards.toMutableStateList())
-    }
+fun CardRow(cards: MutableState<SnapshotStateList<Card>>, b: Boolean) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        items(hand!!.size) { card ->
-            CardItem(card = hand!![card])
+        items(cards.value.size) { card ->
+            if (b && card == 1) {
+                val card = Card(Palo.BACK, "0")
+                CardItem(card)
+            } else {
+                CardItem(card = cards.value[card])
+            }
         }
     }
 }
@@ -347,22 +475,6 @@ fun CardItem(card: Card) {
             "K" -> R.drawable.ebk
             else -> R.drawable.eba
         }
-    } else if (card.palo.compareTo(Palo.HEARTS) == 0) {
-        imageResource = when (card.value) {
-            "2" -> R.drawable.hr2
-            "3" -> R.drawable.hr3
-            "4" -> R.drawable.hr4
-            "5" -> R.drawable.hr5
-            "6" -> R.drawable.hr6
-            "7" -> R.drawable.hr7
-            "8" -> R.drawable.hr8
-            "9" -> R.drawable.hr9
-            "10" -> R.drawable.hr10
-            "J" -> R.drawable.hrj
-            "Q" -> R.drawable.hrq
-            "K" -> R.drawable.hrk
-            else -> R.drawable.hra
-        }
     } else if (card.palo.compareTo(Palo.CLUBS) == 0) {
         imageResource = when (card.value) {
             "2" -> R.drawable.tb2
@@ -379,6 +491,8 @@ fun CardItem(card: Card) {
             "K" -> R.drawable.tbk
             else -> R.drawable.tba
         }
+    } else if (card.palo.compareTo(Palo.BACK) == 0) {
+        imageResource = R.drawable.back
     }
 
     Card(
@@ -402,7 +516,12 @@ fun CardItem(card: Card) {
 @Preview(showBackground = true)
 @Composable
 fun GamePreview() {
+    val darkMode = remember {
+        mutableStateOf(false)
+    }
+    var nombreJugador = "jugador"
+    var numeroCartas = "21"
     Examen_BlackJackTheme {
-        //GameView(darkMode)
+        GameView(darkMode.value, nombreJugador, numeroCartas)
     }
 }

@@ -34,9 +34,6 @@ class Home : ComponentActivity() {
             val darkMode = remember {
             mutableStateOf(false)
         }
-            //darkMode.value = intent.extras!!.getBoolean("darkMode")
-            //darkMode.value = intent.extras!!.getBoolean("darkMode")
-
             Examen_BlackJackTheme(darkTheme = darkMode.value) {
                 HomeView(darkMode)
             }
@@ -47,7 +44,6 @@ class Home : ComponentActivity() {
 class variables : ViewModel() {
     var name = mutableStateOf("Jugador")
     var selectedCardNumber = mutableStateOf("21")
-    //var darkTheme = mutableStateOf<Boolean>(false)
 }
 
 val vars = variables()
@@ -81,7 +77,7 @@ fun HomeView(darkMode: MutableState<Boolean>) {
         floatingActionButtonPosition = FabPosition.Center,
 
         content = {
-            BlackJackHome()
+            BlackJackHome(darkMode)
         }
     )
 
@@ -114,7 +110,7 @@ fun TopBar(darkMode: MutableState<Boolean>) {
 
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
-fun BlackJackHome() {
+fun BlackJackHome(darkMode: MutableState<Boolean>) {
     val context = LocalContext.current
     var show by rememberSaveable { mutableStateOf(false) }
     MyDialog(show, { show = false })
@@ -144,6 +140,7 @@ fun BlackJackHome() {
         Button(
             onClick = {
                 val scoresActivity = Intent(context, Scores::class.java)
+                scoresActivity.putExtra("darkMode", darkMode.value)
                 context.startActivity(scoresActivity)
             },
             modifier = Modifier

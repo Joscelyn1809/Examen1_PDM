@@ -11,34 +11,37 @@ class Croupier {
         hand.clear()
     }
 
-    fun getHandValue(): Int{
-        var value = 0
-        var aces = 0
-
-        for (card in hand) {
-            if (card.value == "A") {
-                aces++ //contador de aces
-            } else if (card.value.toIntOrNull() != null) {
-                //Para el valor de todas las cartas con numero
-                value += card.value.toInt()
+    fun getHandValue(): Int {
+        var puntaje = 0
+        var numAces = 0
+        for (carta: Card in hand!!) {
+            if (carta.value == "A") {
+                numAces += 1
+                puntaje += 11
+            } else if (carta.value.toIntOrNull() != null) {
+                puntaje += carta.value.toInt()
             } else {
-                value += 10 //Para J, Q, K
+                puntaje += 10
             }
-
-            for (i in 1..aces) {
-                if (value + 11 <= 21) {
-                    value += 11
-                } else {
-                    value = +1
-                }
-            }
-
         }
-
-        return value
+        for (i in 0..numAces) {
+            if (puntaje > gamevars.numberCards.toInt() && numAces != 0) {
+                puntaje -= 10
+                numAces--
+            }
+        }
+        return puntaje
     }
 
     fun shouldDrawCard(): Boolean {
         return getHandValue() < 17
+    }
+
+    fun mostrarMano(): String{
+        var mano = ""
+        for (carta in hand) {
+            mano += "${carta.toString()},"
+        }
+        return mano
     }
 }
